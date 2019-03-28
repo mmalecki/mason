@@ -1,0 +1,54 @@
+#!/usr/bin/env node
+const k8s = require('@kubernetes/client-node')
+const Scheduler = require('../scheduler.js')
+
+const kc = new k8s.KubeConfig();
+kc.loadFromDefault();
+
+const kubernetes = kc.makeApiClient(k8s.Core_v1Api);
+
+console.log(kubernetes)
+const scheduler = new Scheduler({
+  pipelineNamespace: 'mason-pipeline',
+  pipelineServiceAccount: 'mason-pipeline',
+  kubernetes: kubernetes
+})
+
+async function main() {
+  const pipeline = {
+    steps: [
+      {
+        name: 'step-0',
+        image: 'node:11',
+        commands: [
+          'node --version'
+        ]
+      },
+      {
+        name: 'step-1',
+        depends_on: ['step-0'],
+        image: 'node:11',
+        commands: [
+          'npm --version'
+        ]
+      },
+      {
+        name: 'step-2',
+        depends_on: ['step-0'],
+        image: 'node:11',
+        commands: [
+          'yarn --version'
+        ]
+      }
+    ]
+  }
+  try {
+    const pods = await scheduler.schedulePipeline(pipeline)
+    console.log(pods)
+  }
+  catch (e) {
+    console.log(e)
+  }
+}
+
+main()
