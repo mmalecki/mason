@@ -101,7 +101,7 @@ Scheduler.prototype.pvc = function (runId) {
 
 Scheduler.prototype.stepToPodContainer = function (step, runId) {
   return {
-    name: uuid(),
+    name: kubernetifyName(step.name),
     image: step.image,
     imagePullPolicy: 'Always',
     command: ['/bin/bash'],
@@ -121,7 +121,7 @@ Scheduler.prototype.dependenciesToInitContainers = function (dependencies, runId
   return dependencies.map(dependency => {
     const depStepId = md5(dependency)
     return {
-      name: uuid(),
+      name: 'wait-for-' + kubernetifyName(dependency),
       image: 'groundnuty/k8s-wait-for:v1.2',
       imagePullPolicy: "Always",
       args: [ 'pod', `-lio.crafto.mason=true,io.crafto.mason/pipeline-run-id=${runId},io.crafto.mason/step-id=${depStepId}` ]
