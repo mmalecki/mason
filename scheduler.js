@@ -123,7 +123,7 @@ Scheduler.prototype.dependenciesToInitContainers = function (dependencies, runId
     return {
       name: 'wait-for-' + kubernetifyName(dependency),
       image: 'groundnuty/k8s-wait-for:v1.2',
-      imagePullPolicy: "Always",
+      imagePullPolicy: 'IfNotPresent',
       args: [ 'pod', `-lio.crafto.mason=true,io.crafto.mason/pipeline-run-id=${runId},io.crafto.mason/step-id=${depStepId}` ]
     }
   })
