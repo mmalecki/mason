@@ -7,23 +7,36 @@ function md5(str) {
   return crypto.createHash('md5').update(str).digest('hex');
 }
 
+function randomHexBytes(count) {
+  return crypto.randomBytes(count).toString('hex')
+}
+
+function kubernetifyName(name) {
+  return name.toLowerCase().replace(/[^a-z0-9-\.]/, '-')
+}
+
 const Scheduler = module.exports = function (options) {
   this.pipelineNamespace = options.pipelineNamespace
   this.pipelineServiceAccount = options.pipelineServiceAccount
   this.kubernetes = options.kubernetes
 }
 
+Scheduler.prototype.stepNameToPodName = function (stepName, runId) {
+  return runId + `-` + kubernetifyName(stepName)
+}
+
 Scheduler.prototype.pipelineToPods = function (pipeline, runId) {
   return pipeline.steps.map((step, idx) => {
     if (!step.depends_on && idx > 0)
       step.depends_on = [pipeline.steps[idx - 1].name]
+
     return this.stepToPod(step, runId)
   })
 }
 
 Scheduler.prototype.schedulePipeline = async function (pipeline) {
-  const runId = uuid()
-  const pods = this.pipelineToPods(pipeline, runId);
+  const runId = kubernetifyName(pipeline.name) + '-' + randomHexBytes(4)
+  const pods = this.pipelineToPods(pipeline, runId)
 
   return Promise.all(
     pods.map(pod =>
@@ -36,18 +49,15 @@ Scheduler.prototype.schedulePipeline = async function (pipeline) {
 }
 
 Scheduler.prototype.stepToPod = function (step, runId) {
-  const stepRunId = uuid()
   return {
     apiVersion: 'v1',
     kind: 'Pod',
     metadata: {
       namespace: this.pipelineNamespace,
-      name: `${stepRunId}`,
+      name: runId + '-' + kubernetifyName(step.name),
       labels: {
-        'io.crafto.mason/pipeline-run-id': runId,
         'io.crafto.mason': 'true',
-        'io.crafto.mason/step-run-id': stepRunId,
-        'io.crafto.mason/step-name': step.name,
+        'io.crafto.mason/pipeline-run-id': runId,
         'io.crafto.mason/step-id': md5(step.name)
       },
     },
