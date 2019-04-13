@@ -2,6 +2,8 @@
 
 const uuid = require('uuid/v1')
 const crypto = require('crypto')
+const k8s = require('@kubernetes/client-node')
+const PipelineRun = require('./lib/pipeline-run.js')
 
 function md5(str) {
   return crypto.createHash('md5').update(str).digest('hex');
@@ -18,7 +20,9 @@ function kubernetifyName(name) {
 const Scheduler = module.exports = function (options) {
   this.pipelineNamespace = options.pipelineNamespace
   this.pipelineServiceAccount = options.pipelineServiceAccount
-  this.kubernetes = options.kubernetes
+  this.kubernetesConfig = options.kubernetes
+  this.kubernetes = this.kubernetesConfig.makeApiClient(k8s.Core_v1Api)
+  this.watcher = new k8s.Watch(this.kubernetesConfig)
 }
 
 Scheduler.prototype.stepNameToPodName = function (stepName, runId) {
@@ -34,7 +38,7 @@ Scheduler.prototype.pipelineToPods = function (pipeline, runId) {
   })
 }
 
-Scheduler.prototype.schedulePipeline = async function (pipeline) {
+Scheduler.prototype.schedulePipeline = async function (pipeline, triggerEvent) {
   const runId = kubernetifyName(pipeline.name) + '-' + randomHexBytes(4)
   const pods = this.pipelineToPods(pipeline, runId)
 
@@ -45,7 +49,14 @@ Scheduler.prototype.schedulePipeline = async function (pipeline) {
         pod
       )
     )
-  )
+  ).then(pods =>
+    this.watchPipeline(new PipelineRun({
+      pipeline,
+      triggerEvent,
+      runId,
+      pods: pods.map(pod => pod.body)
+    })
+  ))
 }
 
 Scheduler.prototype.stepToPod = function (step, runId) {
@@ -104,7 +115,7 @@ Scheduler.prototype.stepToPodContainer = function (step, runId) {
     name: kubernetifyName(step.name),
     image: step.image,
     imagePullPolicy: 'Always',
-    command: ['/bin/bash'],
+    command: ['/bin/sh'],
     args: ['-c', step.commands.join(' && ')],
     volumeMounts: [
       {
@@ -127,4 +138,20 @@ Scheduler.prototype.dependenciesToInitContainers = function (dependencies, runId
       args: [ 'pod', `-lio.crafto.mason=true,io.crafto.mason/pipeline-run-id=${runId},io.crafto.mason/step-id=${depStepId}` ]
     }
   })
+}
+
+Scheduler.prototype.watchPipeline = async function (pipelineRun) {
+  const req = this.watcher.watch(
+    `/api/v1/namespaces/${this.pipelineNamespace}/pods`,
+    {
+      labelSelector: `io.crafto.mason/pipeline-run-id=${pipelineRun.runId}`
+    },
+    (type, obj) => {
+      if (type !== 'MODIFIED') return;
+      // XXX(mmalecki): this stinks
+      pipelineRun._updatePod(obj)
+    }
+  )
+
+  return pipelineRun
 }

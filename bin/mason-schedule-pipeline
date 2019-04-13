@@ -1,26 +1,28 @@
 #!/usr/bin/env node
 const fs = require('fs')
-const k8s = require('@kubernetes/client-node')
 const Scheduler = require('../scheduler.js')
 const yaml = require('yaml')
+const k8s = require('@kubernetes/client-node')
 
 const kc = new k8s.KubeConfig();
 kc.loadFromDefault();
 
-const kubernetes = kc.makeApiClient(k8s.Core_v1Api);
-
 const scheduler = new Scheduler({
   pipelineNamespace: 'mason-pipeline',
   pipelineServiceAccount: 'mason-pipeline',
-  kubernetes: kubernetes
+  kubernetes: kc
 })
 
 async function main() {
   const pipeline = yaml.parse(fs.readFileSync(process.argv[2], 'utf8'))
   console.log('pipeline', pipeline)
   try {
-    const pods = await scheduler.schedulePipeline(pipeline)
-    console.log(pods)
+    const pipelineRun = await scheduler.schedulePipeline(pipeline)
+    pipelineRun.on('running', () => console.log('pipeline is running...'))
+    pipelineRun.on('failed', (pods) =>
+      console.log(`pipeline failed:\n  ${pods.map(pod => pod.metadata.name).join('\n  ')}`)
+    )
+    pipelineRun.on('succeeded', () => console.log('pipeline succeeded'))
   }
   catch (e) {
     console.log(e)

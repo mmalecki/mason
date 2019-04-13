@@ -1,0 +1,10 @@
+#!/usr/bin/env node
+const http = require('http')
+const Server = require('../lib/server.js')
+const config = require('../lib/config.js')()
+
+const server = new Server(config)
+const httpServer = http.createServer(server.handler)
+httpServer.listen(config.PORT, () => {
+  console.log('mason-scheduler listening on port ' + this.address().port)
+})

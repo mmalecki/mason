@@ -4,6 +4,8 @@
   "dependencies": {
     "@kubernetes/client-node": "^0.8.2",
     "bluebird": "^3.5.3",
+    "body": "^5.1.0",
+    "send-error": "^1.0.1",
     "yaml": "^1.4.0"
   }
 }
