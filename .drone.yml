@@ -3,24 +3,24 @@ name: default
 
 steps:
 - name: node
-  image: node:11
+  image: node:11-alpine
   commands:
   - node -v >> versions
 
 - name: npm
-  image: node:11
+  image: node:11-alpine
   depends_on: []
   commands:
   - npm -v >> versions
 
 - name: yarn
-  image: node:11
+  image: node:11-alpine
   depends_on: []
   commands:
   - yarn -v >> versions
 
 - name: cat
-  image: node:11
+  image: node:11-alpine
   depends_on:
     - node
     - npm
